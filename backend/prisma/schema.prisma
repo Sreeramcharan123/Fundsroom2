@@ -1,0 +1,323 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  SALES
+  WAREHOUSE
+  ACCOUNTS
+}
+
+enum CustomerType {
+  RETAIL
+  WHOLESALE
+  DISTRIBUTOR
+}
+
+enum CustomerStatus {
+  LEAD
+  ACTIVE
+  INACTIVE
+}
+
+enum StockMovementType {
+  IN
+  OUT
+}
+
+enum ChallanStatus {
+  DRAFT
+  CONFIRMED
+  CANCELLED
+}
+
+enum EnquiryStatus {
+  NEW
+  QUOTED
+  WON
+  LOST
+}
+
+enum QuotationStatus {
+  DRAFT
+  SENT
+  ACCEPTED
+  REJECTED
+}
+
+enum SalesOrderStatus {
+  PENDING
+  CONFIRMED
+  DISPATCHED
+  CANCELLED
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  name      String
+  email     String   @unique
+  password  String
+  role      Role
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  stockMovements StockMovement[]
+  challans       SalesChallan[]
+  followUps      FollowUp[]
+  enquiries      Enquiry[]
+  quotations     Quotation[]
+  salesOrdersCreated   SalesOrder[]  @relation("SalesOrderCreator")
+  salesOrdersConfirmed SalesOrder[]  @relation("SalesOrderConfirmer")
+  dispatches     Dispatch[]
+}
+
+model Customer {
+  id           Int            @id @default(autoincrement())
+  name         String
+  mobile       String
+  email        String?
+  businessName String
+  gstNumber    String?
+  type         CustomerType
+  address      String
+  status       CustomerStatus @default(LEAD)
+  followUpDate DateTime?
+  notes        String?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  followUps FollowUp[]
+  challans  SalesChallan[]
+  enquiries  Enquiry[]
+  quotations Quotation[]
+  salesOrders SalesOrder[]
+}
+
+model FollowUp {
+  id         Int      @id @default(autoincrement())
+  customerId Int
+  createdBy  Int
+  note       String
+  followUpDate DateTime @default(now())
+  createdAt  DateTime @default(now())
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [createdBy], references: [id])
+}
+
+model Product {
+  id             Int      @id @default(autoincrement())
+  name           String
+  sku            String   @unique
+  category       String
+  unitPrice      Decimal  @db.Decimal(12, 2)
+  currentStock   Int      @default(0)
+  reservedQuantity Int      @default(0)
+  minStockAlert  Int      @default(0)
+  warehouse      String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  stockMovements StockMovement[]
+  challanItems   ChallanItem[]
+  enquiryItems   EnquiryItem[]
+  quotationItems QuotationItem[]
+  salesOrderItems SalesOrderItem[]
+  dispatchItems  DispatchItem[]
+}
+
+model StockMovement {
+  id          Int               @id @default(autoincrement())
+  productId   Int
+  quantity    Int
+  type        StockMovementType
+  reason      String
+  createdBy   Int
+  createdAt   DateTime          @default(now())
+
+  product Product @relation(fields: [productId], references: [id])
+  user    User    @relation(fields: [createdBy], references: [id])
+}
+
+model SalesChallan {
+  id            Int           @id @default(autoincrement())
+  challanNumber String        @unique
+  customerId    Int
+  totalQuantity Int           @default(0)
+  status        ChallanStatus @default(DRAFT)
+  createdBy     Int
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  customer Customer      @relation(fields: [customerId], references: [id])
+  user     User          @relation(fields: [createdBy], references: [id])
+  items    ChallanItem[]
+}
+
+model ChallanItem {
+  id          Int      @id @default(autoincrement())
+  challanId   Int
+  productId   Int
+  productName String
+  sku         String
+  unitPrice   Decimal  @db.Decimal(12, 2)
+  quantity    Int
+  createdAt   DateTime @default(now())
+
+  challan SalesChallan @relation(fields: [challanId], references: [id], onDelete: Cascade)
+  product Product      @relation(fields: [productId], references: [id])
+}
+
+model Enquiry {
+  id            Int           @id @default(autoincrement())
+  enquiryNumber String        @unique
+  customerId    Int
+  status        EnquiryStatus @default(NEW)
+  notes         String?
+  createdBy     Int
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  customer    Customer       @relation(fields: [customerId], references: [id])
+  user        User           @relation(fields: [createdBy], references: [id])
+  items       EnquiryItem[]
+  quotations  Quotation[]
+}
+
+model EnquiryItem {
+  id          Int      @id @default(autoincrement())
+  enquiryId   Int
+  productId   Int
+  productName String
+  sku         String
+  quantity    Int
+  createdAt   DateTime @default(now())
+
+  enquiry Enquiry @relation(fields: [enquiryId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id])
+}
+
+model Quotation {
+  id             Int             @id @default(autoincrement())
+  quotationNumber String         @unique
+  enquiryId      Int
+  customerId     Int
+  status         QuotationStatus @default(DRAFT)
+  subtotal       Decimal         @db.Decimal(12, 2)
+  totalDiscount  Decimal         @db.Decimal(12, 2)
+  totalGst       Decimal         @db.Decimal(12, 2)
+  grandTotal     Decimal         @db.Decimal(12, 2)
+  validUntil     DateTime?
+  notes          String?
+  createdBy      Int
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  enquiry      Enquiry         @relation(fields: [enquiryId], references: [id])
+  customer     Customer        @relation(fields: [customerId], references: [id])
+  user         User            @relation(fields: [createdBy], references: [id])
+  items        QuotationItem[]
+  salesOrders  SalesOrder[]
+}
+
+model QuotationItem {
+  id            Int      @id @default(autoincrement())
+  quotationId   Int
+  productId     Int
+  productName   String
+  sku           String
+  quantity      Int
+  unitPrice     Decimal  @db.Decimal(12, 2)
+  discountPct   Decimal  @db.Decimal(5, 2) @default(0)
+  gstPct        Decimal  @db.Decimal(5, 2) @default(0)
+  baseAmount    Decimal  @db.Decimal(12, 2)
+  discountAmount Decimal @db.Decimal(12, 2)
+  gstAmount     Decimal  @db.Decimal(12, 2)
+  lineTotal     Decimal  @db.Decimal(12, 2)
+  createdAt     DateTime @default(now())
+
+  quotation      Quotation        @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  product        Product          @relation(fields: [productId], references: [id])
+  salesOrderItems SalesOrderItem[]
+}
+
+model SalesOrder {
+  id            Int              @id @default(autoincrement())
+  orderNumber   String           @unique
+  quotationId   Int              @unique
+  customerId    Int
+  status        SalesOrderStatus @default(PENDING)
+  subtotal      Decimal          @db.Decimal(12, 2)
+  totalDiscount Decimal          @db.Decimal(12, 2)
+  totalGst      Decimal          @db.Decimal(12, 2)
+  grandTotal    Decimal          @db.Decimal(12, 2)
+  createdBy     Int
+  confirmedBy   Int?
+  dispatchedAt  DateTime?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  quotation Quotation       @relation(fields: [quotationId], references: [id])
+  customer  Customer        @relation(fields: [customerId], references: [id])
+  creator   User            @relation("SalesOrderCreator", fields: [createdBy], references: [id])
+  confirmer User?           @relation("SalesOrderConfirmer", fields: [confirmedBy], references: [id])
+  items     SalesOrderItem[]
+  dispatches Dispatch[]
+}
+
+model SalesOrderItem {
+  id              Int      @id @default(autoincrement())
+  salesOrderId    Int
+  quotationItemId Int
+  productId       Int
+  productName     String
+  sku             String
+  quantity        Int
+  unitPrice       Decimal  @db.Decimal(12, 2)
+  discountPct     Decimal  @db.Decimal(5, 2) @default(0)
+  gstPct          Decimal  @db.Decimal(5, 2) @default(0)
+  baseAmount      Decimal  @db.Decimal(12, 2)
+  discountAmount  Decimal  @db.Decimal(12, 2)
+  gstAmount       Decimal  @db.Decimal(12, 2)
+  lineTotal       Decimal  @db.Decimal(12, 2)
+  createdAt       DateTime @default(now())
+
+  salesOrder    SalesOrder     @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
+  quotationItem QuotationItem  @relation(fields: [quotationItemId], references: [id])
+  product       Product        @relation(fields: [productId], references: [id])
+  dispatchItems DispatchItem[]
+}
+
+model Dispatch {
+  id             Int      @id @default(autoincrement())
+  dispatchNumber String   @unique
+  salesOrderId   Int
+  createdBy      Int
+  createdAt      DateTime @default(now())
+
+  salesOrder SalesOrder      @relation(fields: [salesOrderId], references: [id])
+  creator    User            @relation(fields: [createdBy], references: [id])
+  items      DispatchItem[]
+}
+
+model DispatchItem {
+  id              Int      @id @default(autoincrement())
+  dispatchId      Int
+  salesOrderItemId Int
+  productId       Int
+  productName     String
+  sku             String
+  quantity        Int
+  createdAt       DateTime @default(now())
+
+  dispatch       Dispatch        @relation(fields: [dispatchId], references: [id], onDelete: Cascade)
+  salesOrderItem SalesOrderItem  @relation(fields: [salesOrderItemId], references: [id])
+  product        Product         @relation(fields: [productId], references: [id])
+}
