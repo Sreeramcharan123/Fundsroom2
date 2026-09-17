@@ -1,4 +1,4 @@
-# FundsRoom ERP / CRM
+# FundsRoom PERN 
 
 A focused PERN-stack ERP + CRM operations portal for a manufacturing and supply
 business. It manages the complete sales workflow end to end:
